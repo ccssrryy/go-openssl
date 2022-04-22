@@ -125,6 +125,9 @@ func (b *writeBio) WriteTo(w io.Writer) (rv int64, err error) {
 		return 0, nil
 	}
 	n, err := w.Write(data)
+	if n <= 0 || err != nil {
+		return int64(n), err
+	}
 
 	// subtract however much data we wrote from the buffer
 	b.data_mtx.Lock()
