@@ -320,13 +320,27 @@ func (c *Certificate) AddExtension(nid NID, value string) error {
 	}
 	var ctx C.X509V3_CTX
 	C.X509V3_set_ctx(&ctx, c.x, issuer.x, nil, nil, 0)
-	ex := C.X509V3_EXT_conf_nid(nil, &ctx, C.int(nid), C.CString(value))
+	v := C.CString(value)
+	defer C.free(unsafe.Pointer(v))
+
+	ex := C.X509V3_EXT_conf_nid(nil, &ctx, C.int(nid), v)
 	if ex == nil {
 		return errors.New("failed to create x509v3 extension")
 	}
 	defer C.X509_EXTENSION_free(ex)
 	if C.X509_add_ext(c.x, ex, -1) <= 0 {
 		return errors.New("failed to add x509v3 extension")
+	}
+	return nil
+}
+
+func (c *Certificate) AddSAN(value string) error {
+	v := C.CString(value)
+	defer C.free(unsafe.Pointer(v))
+
+	r := C.X_SSL_cert_set_subject_alt_name(c.x, v)
+	if r <= 0 {
+		return errors.New("failed to add SAN")
 	}
 	return nil
 }

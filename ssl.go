@@ -19,6 +19,7 @@ import "C"
 
 import (
 	"os"
+	"runtime"
 	"unsafe"
 )
 
@@ -148,6 +149,18 @@ func (s *SSL) SetSSLCtx(ctx *Ctx) {
 	 * adjust other things we care about
 	 */
 	C.SSL_set_SSL_CTX(s.ssl, ctx.ctx)
+}
+
+func (s *SSL) UseCertificateAndKey(cert *Certificate, privKey PrivateKey) error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	if int(C.SSL_use_PrivateKey(s.ssl, privKey.evpPKey())) != 1 {
+		return errorFromErrorQueue()
+	}
+	if int(C.SSL_use_certificate(s.ssl, cert.x)) != 1 {
+		return errorFromErrorQueue()
+	}
+	return nil
 }
 
 //export sni_cb_thunk

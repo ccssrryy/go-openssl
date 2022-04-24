@@ -63,7 +63,7 @@ extern const SSL_METHOD *X_TLSv1_2_method();
 extern int sni_cb(SSL *ssl_conn, int *ad, void *arg);
 #endif
 extern int X_SSL_verify_cb(int ok, X509_STORE_CTX* store);
-
+extern int X_SSL_cert_set_subject_alt_name(X509 *cert, char * subject_alt_name);
 /* SSL_CTX methods */
 extern int X_SSL_CTX_new_index();
 extern long X_SSL_CTX_set_options(SSL_CTX* ctx, long options);

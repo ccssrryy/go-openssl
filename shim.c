@@ -439,6 +439,34 @@ int X_SSL_verify_cb(int ok, X509_STORE_CTX* store) {
 	return go_ssl_verify_cb_thunk(p, ok, store);
 }
 
+int X_SSL_cert_set_subject_alt_name(X509 *cert, char * subject_alt_name)
+{
+    X509_EXTENSION *extension_san = NULL;
+    ASN1_OCTET_STRING *subject_alt_name_ASN1 = NULL;
+    int ret = -1;
+
+    subject_alt_name_ASN1 = ASN1_OCTET_STRING_new();
+    if (!subject_alt_name_ASN1) {
+        goto err;
+    }
+    ASN1_OCTET_STRING_set(subject_alt_name_ASN1, (unsigned char*) subject_alt_name, strlen(subject_alt_name));
+    if (!X509_EXTENSION_create_by_NID(&extension_san, NID_subject_alt_name, 0, subject_alt_name_ASN1)) {
+        goto err;
+    }
+    ASN1_OCTET_STRING_free(subject_alt_name_ASN1);
+    ret = X509_add_ext(cert, extension_san, -1);
+    if (!ret) {
+        goto err;
+    }
+    X509_EXTENSION_free(extension_san);
+	return 1;
+
+err:
+    if (subject_alt_name_ASN1) ASN1_OCTET_STRING_free(subject_alt_name_ASN1);
+    if (extension_san) X509_EXTENSION_free(extension_san);
+    return -1;
+}
+
 const SSL_METHOD *X_SSLv23_method() {
 	return SSLv23_method();
 }

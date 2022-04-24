@@ -112,6 +112,35 @@ func NewCtx() (*Ctx, error) {
 	return c, err
 }
 
+func LoadCertKeyFromFiles(cert_file string, key_file string) (*Certificate, PrivateKey, error) {
+	cert_bytes, err := ioutil.ReadFile(cert_file)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	certs := SplitPEM(cert_bytes)
+	if len(certs) == 0 {
+		return nil, nil, fmt.Errorf("No PEM certificate found in '%s'", cert_file)
+	}
+	first := certs[0]
+	cert, err := LoadCertificateFromPEM(first)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	key_bytes, err := ioutil.ReadFile(key_file)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	key, err := LoadPrivateKeyFromPEM(key_bytes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return cert, key, nil
+}
+
 // NewCtxFromFiles calls NewCtx, loads the provided files, and configures the
 // context to use them.
 func NewCtxFromFiles(cert_file string, key_file string) (*Ctx, error) {
