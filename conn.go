@@ -201,7 +201,16 @@ func (c *Conn) CurrentCipher() (string, error) {
 }
 
 func (c *Conn) FeedByReader(r io.Reader) error {
-	n, err := c.into_ssl.ReadFromOnce(c.conn)
+	n, err := c.into_ssl.ReadFromOnce(r)
+	if n == 0 && err == io.EOF {
+		c.into_ssl.MarkEOF()
+		return c.Close()
+	}
+	return err
+}
+
+func (c *Conn) FeedAllByReader(r io.Reader) error {
+	n, err := c.into_ssl.ReadAllOnce(r)
 	if n == 0 && err == io.EOF {
 		c.into_ssl.MarkEOF()
 		return c.Close()

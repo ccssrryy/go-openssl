@@ -43,6 +43,7 @@ func get_ssl_idx() C.int {
 
 type SSL struct {
 	ssl       *C.SSL
+	arg       interface{}
 	verify_cb VerifyCallback
 }
 
@@ -151,6 +152,14 @@ func (s *SSL) SetSSLCtx(ctx *Ctx) {
 	C.SSL_set_SSL_CTX(s.ssl, ctx.ctx)
 }
 
+func (s *SSL) SetArg(arg interface{}) {
+	s.arg = arg
+}
+
+func (s *SSL) GetArg() interface{} {
+	return s.arg
+}
+
 func (s *SSL) UseCertificateAndKey(cert *Certificate, privKey PrivateKey) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -174,10 +183,17 @@ func sni_cb_thunk(p unsafe.Pointer, con *C.SSL, ad unsafe.Pointer, arg unsafe.Po
 
 	sni_cb := (*Ctx)(p).sni_cb
 
-	s := &SSL{ssl: con}
-	// This attaches a pointer to our SSL struct into the SNI callback.
-	C.SSL_set_ex_data(s.ssl, get_ssl_idx(), unsafe.Pointer(s))
+	s := (*SSL)(C.SSL_get_ex_data(con, get_ssl_idx()))
+	if s == nil {
+		s := &SSL{ssl: con}
+		// This attaches a pointer to our SSL struct into the SNI callback.
+		C.SSL_set_ex_data(s.ssl, get_ssl_idx(), unsafe.Pointer(s))
+	}
 
 	// Note: this is ctx.sni_cb, not C.sni_cb
 	return C.int(sni_cb(s))
+}
+
+func GetSSLFromCSSL(ssl *C.SSL) *SSL {
+	return (*SSL)(C.SSL_get_ex_data(ssl, get_ssl_idx()))
 }

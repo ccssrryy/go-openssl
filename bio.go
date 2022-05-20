@@ -131,7 +131,10 @@ func (b *writeBio) WriteTo(w io.Writer) (rv int64, err error) {
 
 	// subtract however much data we wrote from the buffer
 	b.data_mtx.Lock()
-	b.buf = b.buf[:copy(b.buf, b.buf[n:])]
+	// b.buf = b.buf[:copy(b.buf, b.buf[n:])]
+	// t := copy(b.buf, b.buf[n:])
+	// b.buf = b.buf[:t]
+	b.buf = b.buf[n:]
 	if b.release_buffers && len(b.buf) == 0 {
 		b.buf = nil
 	}
@@ -194,7 +197,7 @@ func go_read_bio_read(b *C.BIO, data *C.char, size C.int) (rc C.int) {
 		return C.int(len(ptr.buf))
 	}
 	n := copy(nonCopyCString(data, size), ptr.buf)
-	ptr.buf = ptr.buf[:copy(ptr.buf, ptr.buf[n:])]
+	ptr.buf = ptr.buf[n:]
 	if ptr.release_buffers && len(ptr.buf) == 0 {
 		ptr.buf = nil
 	}
@@ -231,17 +234,39 @@ func readBioPending(b *C.BIO) C.long {
 	return C.long(len(ptr.buf))
 }
 
+func (b *readBio) ReadAllOnce(r io.Reader) (n int, err error) {
+
+	// b.op_mtx.Lock()
+	// defer b.op_mtx.Unlock()
+
+	// b.data_mtx.Lock()
+	// defer b.data_mtx.Unlock()
+
+	for len(b.buf) <= cap(b.buf) {
+		if len(b.buf) == cap(b.buf) {
+			new_buf := make([]byte, len(b.buf), len(b.buf)+SSLRecordSize)
+			copy(new_buf, b.buf)
+			b.buf = new_buf
+		}
+		n, err = b.ReadFromOnce(r)
+		if n == 0 || err != nil {
+			break
+		}
+	}
+	return
+}
+
 func (b *readBio) ReadFromOnce(r io.Reader) (n int, err error) {
 	b.op_mtx.Lock()
 	defer b.op_mtx.Unlock()
 
 	// make sure we have a destination that fits at least one SSL record
 	b.data_mtx.Lock()
-	if cap(b.buf) < len(b.buf)+SSLRecordSize {
-		new_buf := make([]byte, len(b.buf), len(b.buf)+SSLRecordSize)
-		copy(new_buf, b.buf)
-		b.buf = new_buf
-	}
+	//if cap(b.buf) < len(b.buf)+SSLRecordSize {
+	//	new_buf := make([]byte, len(b.buf), len(b.buf)+SSLRecordSize)
+	//	copy(new_buf, b.buf)
+	//	b.buf = new_buf
+	//}
 	dst := b.buf[len(b.buf):cap(b.buf)]
 	dst_slice := b.buf
 	b.data_mtx.Unlock()
@@ -264,13 +289,14 @@ func (b *readBio) MakeCBIO() *C.BIO {
 	rv := C.X_BIO_new_read_bio()
 	token := readBioMapping.Add(unsafe.Pointer(b))
 	C.X_BIO_set_data(rv, unsafe.Pointer(token))
+	b.buf = make([]byte, 0, SSLRecordSize*2)
 	return rv
 }
 
-func (self *readBio) Disconnect(b *C.BIO) {
-	if loadReadPtr(b) == self {
-		readBioMapping.Del(token(C.X_BIO_get_data(b)))
-		C.X_BIO_set_data(b, nil)
+func (b *readBio) Disconnect(bio *C.BIO) {
+	if loadReadPtr(bio) == b {
+		readBioMapping.Del(token(C.X_BIO_get_data(bio)))
+		C.X_BIO_set_data(bio, nil)
 	}
 }
 
